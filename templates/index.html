@@ -19,7 +19,7 @@
           <p>このプロトタイプは、1つの段が上から順にパート1、パート2、パート3、パート4で並んでいる画像に対応しています。</p>
           <ul>
             <li>4パートすべてが写っている段だけを入れてください。</li>
-            <li>下端や上端でパートが見切れたシステムは、誤検出の原因になります。</li>
+            <li>上端や下端でパートが見切れた段は、誤検出の原因になります。</li>
             <li>画像の順番は、下の一覧で演奏順に並べ替えてください。</li>
           </ul>
         </div>
@@ -94,13 +94,13 @@
       </section>
 
       <section class="actions-section" aria-label="PDF作成">
+        <p class="action-note">Render無料環境ではメモリ節約のため、1パートずつ作成してください。</p>
         <div class="part-actions">
           <button type="button" data-part="1">パート1を作成</button>
           <button type="button" data-part="2">パート2を作成</button>
           <button type="button" data-part="3">パート3を作成</button>
           <button type="button" data-part="4">パート4を作成</button>
         </div>
-        <button id="allButton" type="button" class="primary">すべてのパートを一度に作成</button>
         <p id="status" class="status" role="status"></p>
       </section>
     </main>

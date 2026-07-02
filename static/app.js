@@ -4,7 +4,6 @@ const imageList = document.getElementById("imageList");
 const emptyMessage = document.getElementById("emptyMessage");
 const imageCount = document.getElementById("imageCount");
 const statusText = document.getElementById("status");
-const allButton = document.getElementById("allButton");
 const verticalScale = document.getElementById("verticalScale");
 const gapMm = document.getElementById("gapMm");
 
@@ -170,10 +169,6 @@ document.querySelectorAll("[data-part]").forEach((button) => {
     const part = button.dataset.part;
     generate(`/generate/${part}`, `part${part}.pdf`);
   });
-});
-
-allButton.addEventListener("click", () => {
-  generate("/generate/all", "parts.zip");
 });
 
 renderList();

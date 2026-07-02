@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import gc
 import shutil
 import tempfile
 import time
 import uuid
-import zipfile
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
@@ -20,9 +20,11 @@ app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 WORK_ROOT = Path(tempfile.gettempdir()) / "quartet_part_maker"
 
-# Render上ではここが一番重いので、Web版はCLI既定値より少し軽くします。
-WEB_DESKEW_ANGLE = 1.5
-WEB_DESKEW_STEP = 0.5
+# Web hosting on Render is much slower than local execution. Keep preprocessing
+# light and resize photos before any expensive image work.
+WEB_MAX_IMAGE_SIDE = 2200
+WEB_DESKEW_ANGLE = 0.0
+WEB_DESKEW_STEP = 1.0
 WEB_NORMALIZE_STRENGTH = 1.15
 
 
@@ -64,12 +66,24 @@ def save_uploads(job_dir: Path) -> list[Path]:
     return paths
 
 
+def resize_for_web(image: Image.Image) -> Image.Image:
+    width, height = image.size
+    longest_side = max(width, height)
+    if longest_side <= WEB_MAX_IMAGE_SIDE:
+        return image.convert("RGB")
+    scale = WEB_MAX_IMAGE_SIDE / longest_side
+    size = (max(1, int(width * scale)), max(1, int(height * scale)))
+    return image.resize(size, Image.Resampling.LANCZOS).convert("RGB")
+
+
 def preprocess_uploads(input_paths: list[Path], job_dir: Path) -> list[Path]:
     preprocessed_dir = job_dir / "preprocessed"
     preprocessed_dir.mkdir()
     output_paths: list[Path] = []
+
     for index, input_path in enumerate(input_paths, start=1):
-        image = Image.open(input_path).convert("RGB")
+        with Image.open(input_path) as opened:
+            image = resize_for_web(opened.convert("RGB"))
         image = preprocess_page_image(
             image,
             enabled=True,
@@ -78,8 +92,11 @@ def preprocess_uploads(input_paths: list[Path], job_dir: Path) -> list[Path]:
             normalize_strength=WEB_NORMALIZE_STRENGTH,
         )
         output_path = preprocessed_dir / f"{index:03d}.jpg"
-        image.save(output_path, quality=92, optimize=True)
+        image.save(output_path, quality=88)
         output_paths.append(output_path)
+        image.close()
+        gc.collect()
+
     return output_paths
 
 
@@ -112,12 +129,13 @@ def build_pdf(input_paths: list[Path], output_path: Path, part: int) -> None:
         clean_strength=1.7,
         vertical_scale=vertical_scale,
         preprocess=False,
-        preprocess_deskew_angle=WEB_DESKEW_ANGLE,
-        preprocess_deskew_step=WEB_DESKEW_STEP,
+        preprocess_deskew_angle=0.0,
+        preprocess_deskew_step=1.0,
         preprocess_normalize_strength=WEB_NORMALIZE_STRENGTH,
         preprocess_debug_dir=None,
         debug_dir=None,
     )
+    gc.collect()
 
 
 def send_and_cleanup(path: Path, job_dir: Path, download_name: str):
@@ -149,26 +167,7 @@ def generate_part(part: int):
 
 @app.post("/generate/all")
 def generate_all():
-    job_dir = make_job_dir()
-    try:
-        input_paths = save_uploads(job_dir)
-        preprocessed_paths = preprocess_uploads(input_paths, job_dir)
-        output_dir = job_dir / "outputs"
-        output_dir.mkdir()
-        pdf_paths: list[Path] = []
-        for part in range(1, 5):
-            output_path = output_dir / f"part{part}.pdf"
-            build_pdf(preprocessed_paths, output_path, part)
-            pdf_paths.append(output_path)
-
-        zip_path = job_dir / "parts.zip"
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-            for pdf_path in pdf_paths:
-                zip_file.write(pdf_path, arcname=pdf_path.name)
-        return send_and_cleanup(zip_path, job_dir, "parts.zip")
-    except Exception as exc:
-        shutil.rmtree(job_dir, ignore_errors=True)
-        return jsonify({"error": str(exc)}), 400
+    return jsonify({"error": "Render無料環境では、メモリ節約のため1パートずつ作成してください。"}), 400
 
 
 if __name__ == "__main__":
