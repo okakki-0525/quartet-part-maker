@@ -8,9 +8,10 @@ import zipfile
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
+from PIL import Image
 from werkzeug.utils import secure_filename
 
-from extract_part import extract_to_pdf
+from extract_part import extract_to_pdf, preprocess_page_image
 
 
 app = Flask(__name__)
@@ -18,6 +19,11 @@ app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 WORK_ROOT = Path(tempfile.gettempdir()) / "quartet_part_maker"
+
+# Render上ではここが一番重いので、Web版はCLI既定値より少し軽くします。
+WEB_DESKEW_ANGLE = 1.5
+WEB_DESKEW_STEP = 0.5
+WEB_NORMALIZE_STRENGTH = 1.15
 
 
 def allowed_file(filename: str) -> bool:
@@ -58,6 +64,25 @@ def save_uploads(job_dir: Path) -> list[Path]:
     return paths
 
 
+def preprocess_uploads(input_paths: list[Path], job_dir: Path) -> list[Path]:
+    preprocessed_dir = job_dir / "preprocessed"
+    preprocessed_dir.mkdir()
+    output_paths: list[Path] = []
+    for index, input_path in enumerate(input_paths, start=1):
+        image = Image.open(input_path).convert("RGB")
+        image = preprocess_page_image(
+            image,
+            enabled=True,
+            deskew_max_angle=WEB_DESKEW_ANGLE,
+            deskew_step=WEB_DESKEW_STEP,
+            normalize_strength=WEB_NORMALIZE_STRENGTH,
+        )
+        output_path = preprocessed_dir / f"{index:03d}.jpg"
+        image.save(output_path, quality=92, optimize=True)
+        output_paths.append(output_path)
+    return output_paths
+
+
 def form_float(name: str, default: float, min_value: float, max_value: float) -> float:
     raw_value = request.form.get(name, str(default))
     try:
@@ -86,10 +111,10 @@ def build_pdf(input_paths: list[Path], output_path: Path, part: int) -> None:
         rehearsal_marks=True,
         clean_strength=1.7,
         vertical_scale=vertical_scale,
-        preprocess=True,
-        preprocess_deskew_angle=2.5,
-        preprocess_deskew_step=0.25,
-        preprocess_normalize_strength=1.15,
+        preprocess=False,
+        preprocess_deskew_angle=WEB_DESKEW_ANGLE,
+        preprocess_deskew_step=WEB_DESKEW_STEP,
+        preprocess_normalize_strength=WEB_NORMALIZE_STRENGTH,
         preprocess_debug_dir=None,
         debug_dir=None,
     )
@@ -113,8 +138,9 @@ def generate_part(part: int):
     job_dir = make_job_dir()
     try:
         input_paths = save_uploads(job_dir)
+        preprocessed_paths = preprocess_uploads(input_paths, job_dir)
         output_path = job_dir / f"part{part}.pdf"
-        build_pdf(input_paths, output_path, part)
+        build_pdf(preprocessed_paths, output_path, part)
         return send_and_cleanup(output_path, job_dir, f"part{part}.pdf")
     except Exception as exc:
         shutil.rmtree(job_dir, ignore_errors=True)
@@ -126,12 +152,13 @@ def generate_all():
     job_dir = make_job_dir()
     try:
         input_paths = save_uploads(job_dir)
+        preprocessed_paths = preprocess_uploads(input_paths, job_dir)
         output_dir = job_dir / "outputs"
         output_dir.mkdir()
         pdf_paths: list[Path] = []
         for part in range(1, 5):
             output_path = output_dir / f"part{part}.pdf"
-            build_pdf(input_paths, output_path, part)
+            build_pdf(preprocessed_paths, output_path, part)
             pdf_paths.append(output_path)
 
         zip_path = job_dir / "parts.zip"
