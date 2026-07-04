@@ -283,7 +283,8 @@ button.danger {
 }
 
 .empty-message,
-.status {
+.status,
+.section-note {
   margin: 12px 0 0;
   color: #52606d;
 }
@@ -291,6 +292,58 @@ button.danger {
 .status.error {
   color: #b42318;
   font-weight: 700;
+}
+
+.memory-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.memory-controls label {
+  min-width: 180px;
+}
+
+.memory-upload {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed #7b8794;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.memory-upload input {
+  margin-top: 8px;
+}
+
+.memory-actions {
+  margin-top: 12px;
+}
+
+.download-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.download-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  width: fit-content;
+  padding: 0 14px;
+  border: 1px solid #1266f1;
+  border-radius: 6px;
+  color: #0b55d9;
+  font-weight: 700;
+  text-decoration: none;
+  background: #eef4ff;
+}
+
+.download-link:hover {
+  background: #dbeafe;
 }
 
 @media (max-width: 720px) {

@@ -6,13 +6,27 @@ const imageCount = document.getElementById("imageCount");
 const statusText = document.getElementById("status");
 const verticalScale = document.getElementById("verticalScale");
 const gapMm = document.getElementById("gapMm");
+const memoryPart = document.getElementById("memoryPart");
+const memoryStart = document.getElementById("memoryStart");
+const memoryClear = document.getElementById("memoryClear");
+const memoryFileInput = document.getElementById("memoryFileInput");
+const memoryFinish = document.getElementById("memoryFinish");
+const memoryStatus = document.getElementById("memoryStatus");
+const memoryDownloads = document.getElementById("memoryDownloads");
 
 let items = [];
 let nextId = 1;
+let memorySessionId = null;
+let memoryState = null;
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
   statusText.classList.toggle("error", isError);
+}
+
+function setMemoryStatus(message, isError = false) {
+  memoryStatus.textContent = message;
+  memoryStatus.classList.toggle("error", isError);
 }
 
 function addFiles(files) {
@@ -104,6 +118,7 @@ function setButtonsDisabled(disabled) {
     button.disabled = disabled;
   });
   renderList();
+  updateMemoryControls();
 }
 
 async function generate(url, filename) {
@@ -121,7 +136,7 @@ async function generate(url, filename) {
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || "PDF作成に失敗しました。");
+      throw new Error(data.error || "PDFファイルの作成に失敗しました。");
     }
     const blob = await response.blob();
     downloadBlob(blob, filename);
@@ -142,6 +157,111 @@ function downloadBlob(blob, filename) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function updateMemoryControls() {
+  const active = Boolean(memorySessionId);
+  memoryFileInput.disabled = !active;
+  memoryFinish.disabled = !active || !memoryState || memoryState.current_count === 0;
+  memoryStart.disabled = active;
+  memoryPart.disabled = active;
+  verticalScale.disabled = active;
+  gapMm.disabled = active;
+}
+
+function renderMemoryDownloads() {
+  memoryDownloads.innerHTML = "";
+  if (!memorySessionId || !memoryState) return;
+  memoryState.ready_pages.forEach((page) => {
+    const link = document.createElement("a");
+    link.href = `/memory/${memorySessionId}/download/${page.page}`;
+    link.textContent = `パート${memoryState.part} ${page.page}ページ目をダウンロード`;
+    link.className = "download-link";
+    memoryDownloads.appendChild(link);
+  });
+}
+
+async function startMemoryMode() {
+  const formData = new FormData();
+  formData.append("part", memoryPart.value);
+  formData.append("vertical_scale", verticalScale.value);
+  formData.append("gap_mm", gapMm.value);
+  setMemoryStatus("省メモリモードを開始しています。");
+  try {
+    const response = await fetch("/memory/start", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "省メモリモードを開始できませんでした。");
+    memorySessionId = data.session_id;
+    memoryState = data.state;
+    setMemoryStatus(data.message);
+    renderMemoryDownloads();
+    updateMemoryControls();
+  } catch (error) {
+    setMemoryStatus(error.message, true);
+  }
+}
+
+async function addMemoryImages(files) {
+  if (!memorySessionId) {
+    setMemoryStatus("先に省メモリモードを開始してください。", true);
+    return;
+  }
+  const selected = Array.from(files).filter((file) => file.type.startsWith("image/"));
+  if (selected.length === 0) return;
+
+  const formData = new FormData();
+  selected.forEach((file) => formData.append("images", file, file.name));
+  memoryFileInput.disabled = true;
+  memoryFinish.disabled = true;
+  setMemoryStatus("画像を処理しています。");
+  try {
+    const response = await fetch(`/memory/${memorySessionId}/add`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "画像の処理に失敗しました。");
+    memoryState = data.state;
+    setMemoryStatus(data.message);
+    renderMemoryDownloads();
+  } catch (error) {
+    setMemoryStatus(error.message, true);
+  } finally {
+    updateMemoryControls();
+  }
+}
+
+async function finishMemoryPage() {
+  if (!memorySessionId) return;
+  setMemoryStatus("最後のページを作成しています。");
+  try {
+    const response = await fetch(`/memory/${memorySessionId}/finish`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "最後のページを作成できませんでした。");
+    memoryState = data.state;
+    setMemoryStatus(data.message);
+    renderMemoryDownloads();
+  } catch (error) {
+    setMemoryStatus(error.message, true);
+  } finally {
+    updateMemoryControls();
+  }
+}
+
+async function clearMemoryMode() {
+  if (memorySessionId) {
+    await fetch(`/memory/${memorySessionId}/clear`, { method: "POST" }).catch(() => {});
+  }
+  memorySessionId = null;
+  memoryState = null;
+  memoryDownloads.innerHTML = "";
+  setMemoryStatus("省メモリモードの作業をリセットしました。");
+  updateMemoryControls();
 }
 
 fileInput.addEventListener("change", () => {
@@ -171,4 +291,13 @@ document.querySelectorAll("[data-part]").forEach((button) => {
   });
 });
 
+memoryStart.addEventListener("click", startMemoryMode);
+memoryClear.addEventListener("click", clearMemoryMode);
+memoryFinish.addEventListener("click", finishMemoryPage);
+memoryFileInput.addEventListener("change", () => {
+  addMemoryImages(memoryFileInput.files);
+  memoryFileInput.value = "";
+});
+
 renderList();
+updateMemoryControls();

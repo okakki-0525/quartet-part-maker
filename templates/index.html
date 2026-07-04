@@ -10,7 +10,7 @@
     <main class="app">
       <header class="header">
         <h1>四重奏パート譜メーカー</h1>
-        <p>4パート構成の総譜画像から、パート別PDFを作成します。</p>
+        <p>4パート構成の総譜画像から、演奏用のパート譜PDFを作成します。</p>
       </header>
 
       <section class="guide-section" aria-labelledby="guide-title">
@@ -18,11 +18,11 @@
           <h2 id="guide-title">最初に確認してください</h2>
           <p>このプロトタイプは、1つの段が上から順にパート1、パート2、パート3、パート4で並んでいる画像に対応しています。</p>
           <ul>
-            <li>4パートすべてが写っている段だけを入れてください。</li>
-            <li>上端や下端でパートが見切れた段は、誤検出の原因になります。</li>
+            <li>4パートすべてが入っている段だけを入れてください。</li>
+            <li>上下でパートが見切れた段は、誤検出の原因になります。</li>
             <li>画像の順番は、下の一覧で演奏順に並べ替えてください。</li>
-            <li>Render無料環境では、一度に処理できる目安は「2段入り画像で6枚程度」です。</li>
-            <li>長い曲は、総譜のページ単位などに分けてPDFを作成してください。</li>
+            <li>Render無料環境では、2段入り画像で6枚程度が通常作成の目安です。</li>
+            <li>長い曲は、省メモリモードで1ページずつ作ると安定しやすくなります。</li>
           </ul>
         </div>
         <div class="ideal-card" aria-label="理想的な画像の例">
@@ -53,15 +53,6 @@
         </div>
       </section>
 
-      <section class="upload-section" aria-labelledby="upload-title">
-        <h2 id="upload-title">画像アップロード</h2>
-        <label id="dropZone" class="drop-zone" for="fileInput">
-          <span class="drop-main">画像をドラッグ＆ドロップ</span>
-          <span class="drop-sub">またはクリックして画像を選択</span>
-          <input id="fileInput" type="file" accept="image/*" multiple>
-        </label>
-      </section>
-
       <section class="settings-section" aria-labelledby="settings-title">
         <h2 id="settings-title">作成設定</h2>
         <div class="settings-grid">
@@ -75,7 +66,7 @@
             </select>
           </label>
           <label>
-            五線間隔
+            段と段の間隔
             <select id="gapMm">
               <option value="2">2mm</option>
               <option value="5" selected>5mm</option>
@@ -84,6 +75,16 @@
             </select>
           </label>
         </div>
+      </section>
+
+      <section class="upload-section" aria-labelledby="upload-title">
+        <h2 id="upload-title">通常作成</h2>
+        <p class="section-note">短い曲向けです。複数画像をまとめてアップロードできます。</p>
+        <label id="dropZone" class="drop-zone" for="fileInput">
+          <span class="drop-main">画像をドラッグ＆ドロップ</span>
+          <span class="drop-sub">またはクリックして画像を選択</span>
+          <input id="fileInput" type="file" accept="image/*" multiple>
+        </label>
       </section>
 
       <section class="list-section" aria-labelledby="list-title">
@@ -104,6 +105,33 @@
           <button type="button" data-part="4">パート4を作成</button>
         </div>
         <p id="status" class="status" role="status"></p>
+      </section>
+
+      <section class="memory-section" aria-labelledby="memory-title">
+        <h2 id="memory-title">省メモリモード</h2>
+        <p class="section-note">長い曲向けです。先に設定を決めてから、画像を順番に追加します。1ページ分がたまるとPDFをダウンロードできます。</p>
+        <div class="memory-controls">
+          <label>
+            作るパート
+            <select id="memoryPart">
+              <option value="1">パート1</option>
+              <option value="2">パート2</option>
+              <option value="3">パート3</option>
+              <option value="4">パート4</option>
+            </select>
+          </label>
+          <button type="button" id="memoryStart" class="primary">省メモリモードを開始</button>
+          <button type="button" id="memoryClear">作業をリセット</button>
+        </div>
+        <label class="memory-upload" for="memoryFileInput">
+          <span>次の画像を追加</span>
+          <input id="memoryFileInput" type="file" accept="image/*" multiple disabled>
+        </label>
+        <div class="memory-actions">
+          <button type="button" id="memoryFinish" disabled>最後のページを作成</button>
+        </div>
+        <p id="memoryStatus" class="status" role="status"></p>
+        <div id="memoryDownloads" class="download-list"></div>
       </section>
     </main>
 
