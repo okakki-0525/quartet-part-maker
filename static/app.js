@@ -8,6 +8,7 @@ const memoryFinish = document.getElementById("memoryFinish");
 const memoryStatus = document.getElementById("memoryStatus");
 const memoryDownloads = document.getElementById("memoryDownloads");
 const registeredPages = document.getElementById("registeredPages");
+const memoryDropZone = document.querySelector(".memory-upload");
 
 let memorySessionId = null;
 let memoryState = null;
@@ -114,6 +115,10 @@ async function addMemoryImages(files) {
 
   const selected = Array.from(files).filter((file) => file.type.startsWith("image/"));
   if (selected.length === 0) return;
+  if (selected.length > 1) {
+    setMemoryStatus("画像は1枚ずつ登録してください。", true);
+    return;
+  }
 
   const formData = new FormData();
   selected.forEach((file) => formData.append("images", file, file.name));
@@ -191,6 +196,27 @@ memoryFinish.addEventListener("click", finishMemoryPage);
 memoryFileInput.addEventListener("change", () => {
   addMemoryImages(memoryFileInput.files);
   memoryFileInput.value = "";
+});
+
+memoryDropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  if (!memoryFileInput.disabled) {
+    memoryDropZone.classList.add("dragover");
+  }
+});
+
+memoryDropZone.addEventListener("dragleave", () => {
+  memoryDropZone.classList.remove("dragover");
+});
+
+memoryDropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  memoryDropZone.classList.remove("dragover");
+  if (memoryFileInput.disabled) {
+    setMemoryStatus("先に作成を開始してください。", true);
+    return;
+  }
+  addMemoryImages(event.dataTransfer.files);
 });
 
 updateRegisteredPages();
