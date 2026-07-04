@@ -137,6 +137,16 @@ h2 {
   background: #eef4ff;
 }
 
+.drop-zone.drop-error {
+  border-color: #d64545;
+  background: #fff5f5;
+}
+
+.drop-zone.drop-error .drop-main,
+.drop-zone.drop-error .drop-sub {
+  color: #b42318;
+}
+
 .drop-main {
   display: block;
   font-size: 20px;

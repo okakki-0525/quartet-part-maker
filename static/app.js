@@ -4,19 +4,33 @@ const memoryPart = document.getElementById("memoryPart");
 const memoryStart = document.getElementById("memoryStart");
 const memoryClear = document.getElementById("memoryClear");
 const memoryFileInput = document.getElementById("memoryFileInput");
+const memoryNext = document.getElementById("memoryNext");
 const memoryFinish = document.getElementById("memoryFinish");
 const memoryStatus = document.getElementById("memoryStatus");
 const memoryDownloads = document.getElementById("memoryDownloads");
 const registeredPages = document.getElementById("registeredPages");
 const memoryDropZone = document.querySelector(".memory-upload");
+const dropMain = document.getElementById("dropMain");
+const dropSub = document.getElementById("dropSub");
 
 let memorySessionId = null;
 let memoryState = null;
 let lastReadyPageCount = 0;
+let waitingForNextPage = false;
 
 function setMemoryStatus(message, isError = false) {
   memoryStatus.textContent = message;
   memoryStatus.classList.toggle("error", isError);
+}
+
+function setDropText(main, sub, isError = false) {
+  dropMain.textContent = main;
+  dropSub.textContent = sub;
+  memoryDropZone.classList.toggle("drop-error", isError);
+}
+
+function resetDropText() {
+  setDropText("次の画像を追加", "クリックまたはドラッグ＆ドロップで1ページずつ登録");
 }
 
 function selectedPartLabel() {
@@ -31,8 +45,11 @@ function updateRegisteredPages() {
 
 function updateMemoryControls() {
   const active = Boolean(memorySessionId);
-  memoryFileInput.disabled = !active;
-  memoryFinish.disabled = !active || !memoryState || Number(memoryState.current_count || 0) === 0;
+  memoryFileInput.disabled = waitingForNextPage;
+  memoryNext.hidden = !waitingForNextPage;
+  memoryNext.disabled = !waitingForNextPage;
+  memoryFinish.disabled =
+    !active || waitingForNextPage || !memoryState || Number(memoryState.current_count || 0) === 0;
   memoryStart.disabled = active;
   memoryPart.disabled = active;
   verticalScale.disabled = active;
@@ -41,7 +58,7 @@ function updateMemoryControls() {
 
 function renderProgress(defaultMessage = "") {
   if (!memoryState) {
-    setMemoryStatus(defaultMessage || "作成を開始すると、ここに進行状況が表示されます。");
+    setMemoryStatus(defaultMessage || "画像を登録すると、自動で作成を開始します。");
     return;
   }
 
@@ -51,10 +68,13 @@ function renderProgress(defaultMessage = "") {
   const latestReady = readyPages[readyPages.length - 1];
 
   if (readyPages.length > lastReadyPageCount && latestReady) {
+    waitingForNextPage = true;
     setMemoryStatus(
       `${part}の${latestReady.page}ページ目が作成できるようになりました。まだ入りきらなかった段があるので次ページの先頭に入れます。`
     );
+    setDropText("ページが完成しました", "「次のページを作成する」を押すと次の画像を登録できます");
     lastReadyPageCount = readyPages.length;
+    updateMemoryControls();
     return;
   }
 
@@ -80,6 +100,8 @@ function renderMemoryDownloads() {
 }
 
 async function startMemoryMode() {
+  if (memorySessionId) return true;
+
   const formData = new FormData();
   formData.append("part", memoryPart.value);
   formData.append("vertical_scale", verticalScale.value);
@@ -97,33 +119,42 @@ async function startMemoryMode() {
     memorySessionId = data.session_id;
     memoryState = data.state;
     lastReadyPageCount = 0;
+    waitingForNextPage = false;
     updateRegisteredPages();
     renderMemoryDownloads();
     renderProgress(`${selectedPartLabel()}の0段目まで抽出しました。`);
+    resetDropText();
+    return true;
   } catch (error) {
     setMemoryStatus(error.message, true);
+    return false;
   } finally {
     updateMemoryControls();
   }
 }
 
 async function addMemoryImages(files) {
-  if (!memorySessionId) {
-    setMemoryStatus("先に作成を開始してください。", true);
-    return;
-  }
-
   const selected = Array.from(files).filter((file) => file.type.startsWith("image/"));
   if (selected.length === 0) return;
+
   if (selected.length > 1) {
-    setMemoryStatus("画像は1枚ずつ登録してください。", true);
+    setDropText("画像は1枚ずつ登録してください", "2枚以上は登録されませんでした", true);
     return;
   }
 
+  if (waitingForNextPage) {
+    setDropText("次のページを作成してください", "先に「次のページを作成する」を押してください", true);
+    return;
+  }
+
+  const started = await startMemoryMode();
+  if (!started || !memorySessionId) return;
+
   const formData = new FormData();
-  selected.forEach((file) => formData.append("images", file, file.name));
+  formData.append("images", selected[0], selected[0].name);
   memoryFileInput.disabled = true;
   memoryFinish.disabled = true;
+  setDropText("画像を処理しています", selected[0].name);
   setMemoryStatus("画像を処理しています。");
 
   try {
@@ -137,16 +168,25 @@ async function addMemoryImages(files) {
     memoryState = data.state;
     updateRegisteredPages();
     renderMemoryDownloads();
+    resetDropText();
     renderProgress();
   } catch (error) {
     setMemoryStatus(error.message, true);
+    setDropText("画像の処理に失敗しました", "別の画像で試してください", true);
   } finally {
     updateMemoryControls();
   }
 }
 
+function continueNextPage() {
+  waitingForNextPage = false;
+  resetDropText();
+  renderProgress(`${selectedPartLabel()}の${Number(memoryState.extracted_systems || 0)}段目まで抽出しました。`);
+  updateMemoryControls();
+}
+
 async function finishMemoryPage() {
-  if (!memorySessionId) return;
+  if (!memorySessionId || waitingForNextPage) return;
 
   setMemoryStatus("余った段をPDFにしています。");
   try {
@@ -159,8 +199,10 @@ async function finishMemoryPage() {
     const previousReadyCount = memoryState ? memoryState.ready_pages.length : 0;
     memoryState = data.state;
     lastReadyPageCount = previousReadyCount;
+    waitingForNextPage = false;
     updateRegisteredPages();
     renderMemoryDownloads();
+    resetDropText();
 
     const latestReady = memoryState.ready_pages[memoryState.ready_pages.length - 1];
     if (latestReady && memoryState.ready_pages.length > previousReadyCount) {
@@ -184,14 +226,17 @@ async function clearMemoryMode() {
   memorySessionId = null;
   memoryState = null;
   lastReadyPageCount = 0;
+  waitingForNextPage = false;
   memoryDownloads.innerHTML = "";
   updateRegisteredPages();
-  setMemoryStatus("作成を開始すると、ここに進行状況が表示されます。");
+  resetDropText();
+  setMemoryStatus("画像を登録すると、自動で作成を開始します。");
   updateMemoryControls();
 }
 
 memoryStart.addEventListener("click", startMemoryMode);
 memoryClear.addEventListener("click", clearMemoryMode);
+memoryNext.addEventListener("click", continueNextPage);
 memoryFinish.addEventListener("click", finishMemoryPage);
 memoryFileInput.addEventListener("change", () => {
   addMemoryImages(memoryFileInput.files);
@@ -200,7 +245,7 @@ memoryFileInput.addEventListener("change", () => {
 
 memoryDropZone.addEventListener("dragover", (event) => {
   event.preventDefault();
-  if (!memoryFileInput.disabled) {
+  if (!waitingForNextPage) {
     memoryDropZone.classList.add("dragover");
   }
 });
@@ -212,12 +257,9 @@ memoryDropZone.addEventListener("dragleave", () => {
 memoryDropZone.addEventListener("drop", (event) => {
   event.preventDefault();
   memoryDropZone.classList.remove("dragover");
-  if (memoryFileInput.disabled) {
-    setMemoryStatus("先に作成を開始してください。", true);
-    return;
-  }
   addMemoryImages(event.dataTransfer.files);
 });
 
+resetDropText();
 updateRegisteredPages();
 updateMemoryControls();

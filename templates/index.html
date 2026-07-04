@@ -85,7 +85,7 @@
           </label>
         </div>
         <div class="start-row">
-          <button type="button" id="memoryStart" class="primary">作成を開始</button>
+          <button type="button" id="memoryStart" class="primary">設定だけ確定する</button>
           <button type="button" id="memoryClear">最初からやり直す</button>
         </div>
       </section>
@@ -94,16 +94,17 @@
         <h2 id="memory-title">スコア画像を登録</h2>
         <p id="registeredPages" class="page-count">スコア0ページを登録しました。</p>
         <label class="drop-zone memory-upload" for="memoryFileInput">
-          <span class="drop-main">次の画像を追加</span>
-          <span class="drop-sub">演奏順に1ページずつ選択してください</span>
+          <span id="dropMain" class="drop-main">次の画像を追加</span>
+          <span id="dropSub" class="drop-sub">クリックまたはドラッグ＆ドロップで1ページずつ登録</span>
           <input id="memoryFileInput" type="file" accept="image/*" disabled>
         </label>
       </section>
 
       <section class="progress-section" aria-labelledby="progress-title">
         <h2 id="progress-title">現在作成中のパート譜</h2>
-        <p id="memoryStatus" class="status" role="status">作成を開始すると、ここに進行状況が表示されます。</p>
+        <p id="memoryStatus" class="status" role="status">画像を登録すると、自動で作成を開始します。</p>
         <div class="memory-actions">
+          <button type="button" id="memoryNext" class="primary" disabled hidden>次のページを作成する</button>
           <button type="button" id="memoryFinish" disabled>余った段を作成して終了</button>
         </div>
         <div id="memoryDownloads" class="download-list"></div>
