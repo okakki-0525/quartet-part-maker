@@ -149,7 +149,7 @@ h2 {
   color: #52606d;
 }
 
-#fileInput {
+#memoryFileInput {
   display: none;
 }
 
@@ -240,10 +240,15 @@ select {
 }
 
 .item-controls,
-.part-actions {
+.part-actions,
+.start-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.start-row {
+  margin-top: 14px;
 }
 
 button {
@@ -305,17 +310,14 @@ button.danger {
   min-width: 180px;
 }
 
-.memory-upload {
-  margin-top: 14px;
-  padding: 14px;
-  border: 1px dashed #7b8794;
-  border-radius: 8px;
-  background: #f8fafc;
-  cursor: pointer;
+.page-count {
+  margin: 0 0 12px;
+  font-weight: 700;
+  color: #243b53;
 }
 
-.memory-upload input {
-  margin-top: 8px;
+.memory-upload {
+  margin-top: 0;
 }
 
 .memory-actions {
