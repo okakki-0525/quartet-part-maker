@@ -104,6 +104,8 @@
         <h2 id="progress-title">現在作成中のパート譜</h2>
         <p id="memoryStatus" class="status" role="status">画像を登録すると、自動で作成を開始します。</p>
         <div class="memory-actions">
+          <button type="button" id="memoryProcessNow">現時点で処理する</button>
+          <p id="nextWarning" class="warning-text" hidden>次ページを作成ボタンを押すと現在のパート譜は破棄されます。</p>
           <button type="button" id="memoryNext" class="primary" disabled hidden>次のページを作成する</button>
           <button type="button" id="memoryFinish" disabled>余った段を作成して終了</button>
         </div>

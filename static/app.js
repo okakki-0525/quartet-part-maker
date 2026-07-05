@@ -4,8 +4,10 @@ const memoryPart = document.getElementById("memoryPart");
 const memoryStart = document.getElementById("memoryStart");
 const memoryClear = document.getElementById("memoryClear");
 const memoryFileInput = document.getElementById("memoryFileInput");
+const memoryProcessNow = document.getElementById("memoryProcessNow");
 const memoryNext = document.getElementById("memoryNext");
 const memoryFinish = document.getElementById("memoryFinish");
+const nextWarning = document.getElementById("nextWarning");
 const memoryStatus = document.getElementById("memoryStatus");
 const memoryDownloads = document.getElementById("memoryDownloads");
 const registeredPages = document.getElementById("registeredPages");
@@ -38,6 +40,10 @@ function selectedPartLabel() {
   return `パート${part}`;
 }
 
+function currentCount() {
+  return memoryState ? Number(memoryState.current_count || 0) : 0;
+}
+
 function updateRegisteredPages() {
   const count = memoryState ? Number(memoryState.uploaded_pages || 0) : 0;
   registeredPages.textContent = `スコア${count}ページを登録しました。`;
@@ -45,15 +51,28 @@ function updateRegisteredPages() {
 
 function updateMemoryControls() {
   const active = Boolean(memorySessionId);
+  const hasCurrentCrops = currentCount() > 0;
+
   memoryFileInput.disabled = waitingForNextPage;
+  memoryProcessNow.disabled = !active || waitingForNextPage || !hasCurrentCrops;
   memoryNext.hidden = !waitingForNextPage;
   memoryNext.disabled = !waitingForNextPage;
-  memoryFinish.disabled =
-    !active || waitingForNextPage || !memoryState || Number(memoryState.current_count || 0) === 0;
+  nextWarning.hidden = !waitingForNextPage;
+  memoryFinish.hidden = !waitingForNextPage || !hasCurrentCrops;
+  memoryFinish.disabled = !waitingForNextPage || !hasCurrentCrops;
   memoryStart.disabled = active;
   memoryPart.disabled = active;
   verticalScale.disabled = active;
   gapMm.disabled = active;
+}
+
+function latestUsableReadyPage() {
+  if (!memoryState) return null;
+  const pages = memoryState.ready_pages || [];
+  for (let index = pages.length - 1; index >= 0; index -= 1) {
+    if (!pages[index].discarded) return pages[index];
+  }
+  return null;
 }
 
 function renderProgress(defaultMessage = "") {
@@ -65,14 +84,14 @@ function renderProgress(defaultMessage = "") {
   const part = selectedPartLabel();
   const totalSystems = Number(memoryState.extracted_systems || 0);
   const readyPages = memoryState.ready_pages || [];
-  const latestReady = readyPages[readyPages.length - 1];
+  const latestReady = latestUsableReadyPage();
 
   if (readyPages.length > lastReadyPageCount && latestReady) {
     waitingForNextPage = true;
     setMemoryStatus(
       `${part}の${latestReady.page}ページ目が作成できるようになりました。まだ入りきらなかった段があるので次ページの先頭に入れます。`
     );
-    setDropText("ページが完成しました", "「次のページを作成する」を押すと次の画像を登録できます");
+    setDropText("ページが完成しました", "PDFをダウンロードしてから次ページへ進んでください");
     lastReadyPageCount = readyPages.length;
     updateMemoryControls();
     return;
@@ -91,6 +110,14 @@ function renderMemoryDownloads() {
   if (!memorySessionId || !memoryState) return;
 
   memoryState.ready_pages.forEach((page) => {
+    if (page.discarded) {
+      const disabled = document.createElement("span");
+      disabled.textContent = `パート${memoryState.part} ${page.page}ページ目は破棄されました`;
+      disabled.className = "download-link disabled";
+      memoryDownloads.appendChild(disabled);
+      return;
+    }
+
     const link = document.createElement("a");
     link.href = `/memory/${memorySessionId}/download/${page.page}`;
     link.textContent = `パート${memoryState.part} ${page.page}ページ目をダウンロード`;
@@ -143,7 +170,7 @@ async function addMemoryImages(files) {
   }
 
   if (waitingForNextPage) {
-    setDropText("次のページを作成してください", "先に「次のページを作成する」を押してください", true);
+    setDropText("次ページへ進んでください", "先に「次のページを作成する」を押してください", true);
     return;
   }
 
@@ -153,7 +180,7 @@ async function addMemoryImages(files) {
   const formData = new FormData();
   formData.append("images", selected[0], selected[0].name);
   memoryFileInput.disabled = true;
-  memoryFinish.disabled = true;
+  memoryProcessNow.disabled = true;
   setDropText("画像を処理しています", selected[0].name);
   setMemoryStatus("画像を処理しています。");
 
@@ -178,23 +205,19 @@ async function addMemoryImages(files) {
   }
 }
 
-function continueNextPage() {
-  waitingForNextPage = false;
-  resetDropText();
-  renderProgress(`${selectedPartLabel()}の${Number(memoryState.extracted_systems || 0)}段目まで抽出しました。`);
-  updateMemoryControls();
-}
+async function finalizeCurrentPage(statusWhileWorking, noCropMessage) {
+  if (!memorySessionId || currentCount() === 0) {
+    setMemoryStatus(noCropMessage);
+    return;
+  }
 
-async function finishMemoryPage() {
-  if (!memorySessionId || waitingForNextPage) return;
-
-  setMemoryStatus("余った段をPDFにしています。");
+  setMemoryStatus(statusWhileWorking);
   try {
     const response = await fetch(`/memory/${memorySessionId}/finish`, {
       method: "POST",
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "余った段をPDFにできませんでした。");
+    if (!response.ok) throw new Error(data.error || "PDFにできませんでした。");
 
     const previousReadyCount = memoryState ? memoryState.ready_pages.length : 0;
     memoryState = data.state;
@@ -204,13 +227,44 @@ async function finishMemoryPage() {
     renderMemoryDownloads();
     resetDropText();
 
-    const latestReady = memoryState.ready_pages[memoryState.ready_pages.length - 1];
+    const latestReady = latestUsableReadyPage();
     if (latestReady && memoryState.ready_pages.length > previousReadyCount) {
       setMemoryStatus(`パート${memoryState.part}の${latestReady.page}ページ目が作成できるようになりました。`);
       lastReadyPageCount = memoryState.ready_pages.length;
     } else {
-      renderProgress("余った段はありません。");
+      renderProgress(noCropMessage);
     }
+  } catch (error) {
+    setMemoryStatus(error.message, true);
+  } finally {
+    updateMemoryControls();
+  }
+}
+
+async function processNow() {
+  await finalizeCurrentPage("現時点で溜まっている段をPDFにしています。", "処理できる段はまだありません。");
+}
+
+async function finishRemaining() {
+  await finalizeCurrentPage("余った段をPDFにしています。", "余った段はありません。");
+}
+
+async function continueNextPage() {
+  if (!memorySessionId || !waitingForNextPage) return;
+
+  setMemoryStatus("現在のパート譜を破棄して、次ページの作業に進みます。");
+  try {
+    const response = await fetch(`/memory/${memorySessionId}/discard-latest`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "現在のパート譜を破棄できませんでした。");
+
+    memoryState = data.state;
+    waitingForNextPage = false;
+    renderMemoryDownloads();
+    resetDropText();
+    renderProgress(`${selectedPartLabel()}の${Number(memoryState.extracted_systems || 0)}段目まで抽出しました。`);
   } catch (error) {
     setMemoryStatus(error.message, true);
   } finally {
@@ -236,8 +290,9 @@ async function clearMemoryMode() {
 
 memoryStart.addEventListener("click", startMemoryMode);
 memoryClear.addEventListener("click", clearMemoryMode);
+memoryProcessNow.addEventListener("click", processNow);
 memoryNext.addEventListener("click", continueNextPage);
-memoryFinish.addEventListener("click", finishMemoryPage);
+memoryFinish.addEventListener("click", finishRemaining);
 memoryFileInput.addEventListener("change", () => {
   addMemoryImages(memoryFileInput.files);
   memoryFileInput.value = "";

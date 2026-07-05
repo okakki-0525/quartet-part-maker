@@ -331,7 +331,18 @@ button.danger {
 }
 
 .memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
   margin-top: 12px;
+}
+
+.warning-text {
+  flex-basis: 100%;
+  margin: 0;
+  color: #b42318;
+  font-weight: 700;
 }
 
 .download-list {
@@ -356,6 +367,13 @@ button.danger {
 
 .download-link:hover {
   background: #dbeafe;
+}
+
+.download-link.disabled {
+  border-color: #bcccdc;
+  color: #697b8c;
+  background: #f0f4f8;
+  cursor: not-allowed;
 }
 
 @media (max-width: 720px) {

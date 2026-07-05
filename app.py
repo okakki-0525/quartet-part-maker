@@ -300,11 +300,32 @@ def memory_download(session_id: str, page_number: int):
     state = load_memory_state(job_dir)
     for ready_page in state["ready_pages"]:
         if int(ready_page["page"]) == page_number:
+            if ready_page.get("discarded"):
+                break
             path = pages_dir(job_dir) / ready_page["filename"]
             if not path.exists():
                 break
             return send_file(path, as_attachment=True, download_name=ready_page["download_name"])
     return jsonify({"error": "指定されたPDFページが見つかりません。"}), 404
+
+
+@app.post("/memory/<session_id>/discard-latest")
+def memory_discard_latest(session_id: str):
+    job_dir = memory_job_dir(session_id)
+    try:
+        state = load_memory_state(job_dir)
+        ready_pages = state.get("ready_pages", [])
+        for ready_page in reversed(ready_pages):
+            if ready_page.get("discarded"):
+                continue
+            path = pages_dir(job_dir) / ready_page["filename"]
+            path.unlink(missing_ok=True)
+            ready_page["discarded"] = True
+            save_memory_state(job_dir, state)
+            return jsonify({"message": "現在のパート譜を破棄しました。", "state": state})
+        return jsonify({"message": "破棄するパート譜はありません。", "state": state})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @app.post("/memory/<session_id>/clear")
