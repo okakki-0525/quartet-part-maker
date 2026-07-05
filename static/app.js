@@ -9,6 +9,7 @@ const memoryNext = document.getElementById("memoryNext");
 const memoryFinish = document.getElementById("memoryFinish");
 const nextWarning = document.getElementById("nextWarning");
 const memoryStatus = document.getElementById("memoryStatus");
+const busyMeter = document.getElementById("busyMeter");
 const memoryDownloads = document.getElementById("memoryDownloads");
 const registeredPages = document.getElementById("registeredPages");
 const memoryDropZone = document.querySelector(".memory-upload");
@@ -23,6 +24,10 @@ let waitingForNextPage = false;
 function setMemoryStatus(message, isError = false) {
   memoryStatus.textContent = message;
   memoryStatus.classList.toggle("error", isError);
+}
+
+function setBusy(isBusy) {
+  busyMeter.hidden = !isBusy;
 }
 
 function setDropText(main, sub, isError = false) {
@@ -42,6 +47,14 @@ function selectedPartLabel() {
 
 function currentCount() {
   return memoryState ? Number(memoryState.current_count || 0) : 0;
+}
+
+function currentPageNumber() {
+  return memoryState ? Number(memoryState.page_number || 1) : 1;
+}
+
+function currentPageProgressMessage() {
+  return `${selectedPartLabel()}の${currentPageNumber()}ページ目の${currentCount()}段目まで抽出しました。`;
 }
 
 function updateRegisteredPages() {
@@ -82,7 +95,6 @@ function renderProgress(defaultMessage = "") {
   }
 
   const part = selectedPartLabel();
-  const totalSystems = Number(memoryState.extracted_systems || 0);
   const readyPages = memoryState.ready_pages || [];
   const latestReady = latestUsableReadyPage();
 
@@ -102,7 +114,7 @@ function renderProgress(defaultMessage = "") {
     return;
   }
 
-  setMemoryStatus(`${part}の${totalSystems}段目まで抽出しました。`);
+  setMemoryStatus(currentPageProgressMessage());
 }
 
 function renderMemoryDownloads() {
@@ -134,6 +146,7 @@ async function startMemoryMode() {
   formData.append("vertical_scale", verticalScale.value);
   formData.append("gap_mm", gapMm.value);
   setMemoryStatus("作成を開始しています。");
+  setBusy(true);
 
   try {
     const response = await fetch("/memory/start", {
@@ -149,13 +162,14 @@ async function startMemoryMode() {
     waitingForNextPage = false;
     updateRegisteredPages();
     renderMemoryDownloads();
-    renderProgress(`${selectedPartLabel()}の0段目まで抽出しました。`);
+    renderProgress(currentPageProgressMessage());
     resetDropText();
     return true;
   } catch (error) {
     setMemoryStatus(error.message, true);
     return false;
   } finally {
+    setBusy(false);
     updateMemoryControls();
   }
 }
@@ -183,6 +197,7 @@ async function addMemoryImages(files) {
   memoryProcessNow.disabled = true;
   setDropText("画像を処理しています", selected[0].name);
   setMemoryStatus("画像を処理しています。");
+  setBusy(true);
 
   try {
     const response = await fetch(`/memory/${memorySessionId}/add`, {
@@ -201,6 +216,7 @@ async function addMemoryImages(files) {
     setMemoryStatus(error.message, true);
     setDropText("画像の処理に失敗しました", "別の画像で試してください", true);
   } finally {
+    setBusy(false);
     updateMemoryControls();
   }
 }
@@ -212,6 +228,7 @@ async function finalizeCurrentPage(statusWhileWorking, noCropMessage) {
   }
 
   setMemoryStatus(statusWhileWorking);
+  setBusy(true);
   try {
     const response = await fetch(`/memory/${memorySessionId}/finish`, {
       method: "POST",
@@ -237,6 +254,7 @@ async function finalizeCurrentPage(statusWhileWorking, noCropMessage) {
   } catch (error) {
     setMemoryStatus(error.message, true);
   } finally {
+    setBusy(false);
     updateMemoryControls();
   }
 }
@@ -253,6 +271,7 @@ async function continueNextPage() {
   if (!memorySessionId || !waitingForNextPage) return;
 
   setMemoryStatus("現在のパート譜を破棄して、次ページの作業に進みます。");
+  setBusy(true);
   try {
     const response = await fetch(`/memory/${memorySessionId}/discard-latest`, {
       method: "POST",
@@ -264,10 +283,11 @@ async function continueNextPage() {
     waitingForNextPage = false;
     renderMemoryDownloads();
     resetDropText();
-    renderProgress(`${selectedPartLabel()}の${Number(memoryState.extracted_systems || 0)}段目まで抽出しました。`);
+    renderProgress(currentPageProgressMessage());
   } catch (error) {
     setMemoryStatus(error.message, true);
   } finally {
+    setBusy(false);
     updateMemoryControls();
   }
 }

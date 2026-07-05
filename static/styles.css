@@ -309,6 +309,33 @@ button.danger {
   font-weight: 700;
 }
 
+.busy-meter {
+  position: relative;
+  overflow: hidden;
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #d9e2ec;
+}
+
+.busy-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 36%;
+  border-radius: inherit;
+  background: #1266f1;
+  animation: busy-slide 1s ease-in-out infinite;
+}
+
+@keyframes busy-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
 .memory-controls {
   display: flex;
   flex-wrap: wrap;

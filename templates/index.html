@@ -103,6 +103,9 @@
       <section class="progress-section" aria-labelledby="progress-title">
         <h2 id="progress-title">現在作成中のパート譜</h2>
         <p id="memoryStatus" class="status" role="status">画像を登録すると、自動で作成を開始します。</p>
+        <div id="busyMeter" class="busy-meter" hidden aria-hidden="true">
+          <span></span>
+        </div>
         <div class="memory-actions">
           <button type="button" id="memoryProcessNow">現時点で処理する</button>
           <p id="nextWarning" class="warning-text" hidden>次ページを作成ボタンを押すと現在のパート譜は破棄されます。</p>
